@@ -1,0 +1,26 @@
+iteration	change	pr	composite_score	total_findings	real_issues	security_issues	false_positives	nitpicks	unrelated	correct_zero	fp_rate	nitpick_rate	unrelated_rate	wall_time_sec	missed_issues	status	notes
+0	baseline	PR#722	-7	2	0	0	0	1	1	0	0%	50%	50%	298	none	baseline	Clean refactor PR. 1 nitpick (type assertion), 1 unrelated (pre-existing inline arrow). Should have been zero findings.
+0	baseline	PR#680	-6	2	0	0	0	2	0	0	0%	100%	0%	90	none	baseline	Clean UI redesign. 2 nitpicks (curried useCallback, hard-coded borderRadius). Should have been zero findings.
+0	baseline	local/tools-live-api	-18	7	1	0	5	1	0	0	71%	14%	0%	201	none	baseline	1 real issue (toggle no-op for PP connectors). 5 false positives (AbortSignal, static JSX, useMemo deps, connector URLs, OData). 1 nitpick (prefix matching).
+1	disprove-first	PR#722	8	0	0	0	0	0	0	1	0%	0%	0%	107	none	keep	Zero findings on clean PR. 8 hypotheses tested, all correctly abandoned.
+1	disprove-first	PR#680	10	1	1	0	0	0	0	0	0%	0%	0%	156	none	keep	1 real issue (global colorBrandForeground1 override). 7 hypotheses tested, 6 dropped. Both baseline nitpicks eliminated.
+1	disprove-first	local/tools-live-api	10	1	1	0	0	0	0	0	0%	0%	0%	155	none	keep	Same real issue (toggle no-op) preserved. All 5 baseline FPs eliminated. 0 nitpicks.
+2	zero-is-best	PR#722	8	0	0	0	0	0	0	1	0%	0%	0%	87	none	discard	Same as iter1. No improvement.
+2	zero-is-best	PR#680	8	0	0	0	0	0	0	1	0%	0%	0%	60	none	discard	Dropped the global token finding. User says missing real issues matters more. Reverted.
+2	zero-is-best	local/tools-live-api	10	1	1	0	0	0	0	0	0%	0%	0%	74	none	discard	Same as iter1. Guard passed (toggle no-op found).
+3	counterbalance	PR#722	-6	2	0	0	0	2	0	0	0%	100%	0%	89	none	discard	2 nits (telemetry naming, re-export removal). Was +8 in iter1. Overcorrected.
+3	counterbalance	PR#680	7	2	1	0	0	1	0	0	0%	50%	0%	63	none	discard	Global token preserved (real). Telemetry-only handler (nit). Net neutral vs iter1.
+3	counterbalance	local/tools-live-api	9	5	2	0	1	2	0	0	20%	40%	0%	134	none	discard	Found new real (error not shown). But re-introduced JSX FP + 2 nits. Net worse.
+GT	ground-truth	PR#594	130	13	13	0	0	0	0	0	0%	0%	0%	115	none	baseline	100% detection (13/13). 0 FP. All cjennison issues found.
+GT	ground-truth	PR#620	95	10	9	0	0	0	0	0	0%	0%	0%	124	none	baseline	100% detection (9/9). 0 FP. 1 bonus (unsafe casts). All cjennison issues found.
+GT	ground-truth	PR#597	150	15	8	0	0	0	0	0	0%	0%	0%	167	none	baseline	100% detection (8/8). 0 FP. 5 bonus (all confirmed by fix commits).
+GT	ground-truth	PR#644	50	5	4	0	0	0	0	0	0%	0%	0%	132	none	baseline	100% detection (4/4). 0 FP. 1 bonus (ErrorBoundary placement).
+GT	ground-truth	PR#696	50	5	3	0	0	0	0	0	0%	0%	0%	271	2 GT unfindable (already fixed at early commit)	baseline	60% raw (3/5) but 100% on findable issues (3/3). 2 bonus bugs (missing React import, SVG gradient ID collision).
+GT	ground-truth	PR#711	100	10	8	0	0	0	0	0	0%	0%	0%	206	none	baseline	100% detection (8/8). 0 FP. 2 bonus (missing type re-exports, dead code).
+GT	ground-truth	PR#604	45	5	4	0	0	0	0	0	0%	0%	0%	141	none	baseline	100% detection (4/4). 0 FP. 1 bonus nit (missing telemetry mock).
+GT	ground-truth	PR#648	80	8	6	0	0	0	0	0	0%	0%	0%	142	none	baseline	100% detection (6/6). 0 FP. 2 bonus (code duplication, over-invalidation).
+4	bias-guards	PR#722	8	0	0	0	0	0	0	1	0%	0%	0%	51	none	discard	Same as iter1. No change.
+4	bias-guards	PR#680	1	4	1	0	0	3	0	0	0%	75%	0%	75	none	discard	Real finding preserved but 3 nitpicks added. Worse than iter1.
+4	bias-guards	local/tools-live-api	-10	9	1	0	1	4	0	0	11%	44%	0%	123	none	discard	Guard passed but 8 extra findings (noise). Much worse.
+4	bias-guards	PR#597-guard	n/a	n/a	n/a	n/a	n/a	n/a	n/a	n/a	n/a	n/a	n/a	118	none	discard	7/8 detection (down from 8/8). Bias guards degraded both quality and detection.
+tombstone	plugin-conversion	n/a	n/a	n/a	n/a	n/a	n/a	n/a	n/a	n/a	n/a	n/a	n/a	n/a	n/a	n/a	tombstone	Pre-plugin skill .git repo (at ~/.claude/skills/review-pr-as-me/.git) HEAD=6e700f1378f09c19fe4870765f94120579de9491 (experiment(structure): extract plan-fixes walkthrough to reference file 711 to 506 lines), tag=v1.0. Skill converted to review-pr-as-me@mdrichardson plugin with normal+fast skills; chezmoi is now source of truth and plugin.json carries version. Embedded .git deleted as part of migration on 2026-04-21.

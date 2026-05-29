@@ -1,0 +1,51 @@
+{
+  "skill_name": "review-pr-as-me:normal",
+  "evals": [
+    {
+      "id": 1,
+      "eval_name": "ghe-url-one-shot",
+      "prompt": "/review-pr-as-me:normal https://microsoft.ghe.com/bic/copilot-studio-ux/pull/806",
+      "expected_output": "First action is TaskCreate populating the PR-URL-mode task list. Second action is gh pr view (with GH_HOST=microsoft.ghe.com) or equivalent metadata fetch. No AskUserQuestion issued unless the local clone at ~/.claude/repos/bic/copilot-studio-ux/ is genuinely missing.",
+      "assertions": [
+        {
+          "name": "no_pre_step3_user_questions",
+          "text": "Between invocation and the end of Step 3, zero AskUserQuestion calls — unless the clone directory is missing, in which case exactly one 'shall I create it?' prompt is allowed."
+        },
+        {
+          "name": "tasks_created_before_pr_fetch",
+          "text": "TaskCreate is called before the first PR-metadata fetch."
+        },
+        {
+          "name": "pr_fetch_uses_invocation_url",
+          "text": "The gh pr view / az repos pr show call references the exact URL/IDs from the invocation (bic/copilot-studio-ux/pull/806, GH_HOST=microsoft.ghe.com)."
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 2,
+      "eval_name": "github-url-with-focus-instructions",
+      "prompt": "/review-pr-as-me:normal https://github.com/facebook/react/pull/28000 focus on effect dependency correctness",
+      "expected_output": "review_instructions set to 'focus on effect dependency correctness'. Instructions passed to all 4 analysis agents and to per-finding verifiers. No clarifying questions before Step 3.",
+      "assertions": [
+        {
+          "name": "no_pre_step3_user_questions",
+          "text": "Between invocation and the end of Step 3, zero AskUserQuestion calls — unless the clone directory is missing, in which case exactly one 'shall I create it?' prompt is allowed."
+        },
+        {
+          "name": "tasks_created_before_pr_fetch",
+          "text": "TaskCreate is called before the first PR-metadata fetch."
+        },
+        {
+          "name": "pr_fetch_uses_invocation_url",
+          "text": "The gh pr view call references facebook/react/pull/28000."
+        },
+        {
+          "name": "review_instructions_honored",
+          "text": "The string 'focus on effect dependency correctness' appears verbatim in the prompt text of at least one dispatched analysis agent."
+        }
+      ],
+      "files": []
+    }
+  ]
+}
