@@ -150,8 +150,12 @@ questions, even if the same finding cycles back after an error.
 **Skip** → increment `skipped_count`. Move to the next finding.
 
 **Post comment** →
-- Use the **Comment (in my voice)** body verbatim from the rendered
-  finding block as `body_text`.
+- Build `body_text` by prefixing the **Comment (in my voice)** body
+  (verbatim from the rendered finding block) with the review-bot
+  header. `body_text` must be exactly the literal line
+  `🤖Michael's Review Bot🤖`, then a blank line, then the voice
+  comment — i.e. `body_text = "🤖Michael's Review Bot🤖\n\n" + {voice comment}`.
+  This applies to both inline and PR-wide posts (both platforms).
 - Post per the [Posting commands](#posting-commands) section below.
 - On success, increment `posted_count` and record the returned
   comment URL.
