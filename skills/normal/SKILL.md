@@ -1,9 +1,36 @@
 ---
-name: review-pr-as-me:normal
-description: "Review React PRs and local code changes. Use this skill whenever the user provides a GitHub or ADO pull request URL, says 'review this PR', 'review my changes', 'review this branch', 'look at this diff', 'code review', or invokes /review-pr-as-me:normal. Also trigger when the user pastes a github.com/*/pull/* or dev.azure.com/*/pullrequest/* link. When no URL is provided, detects local git state and offers to review uncommitted changes or branch diff. Generates copy-paste-ready PR review comments in the user's personal voice. Never posts automatically."
+name: review-pr-as-me-normal
+description: "Review React PRs and local code changes. Use this skill whenever the user provides a GitHub or ADO pull request URL, says 'review this PR', 'review my changes', 'review this branch', 'look at this diff', 'code review', or invokes /review-pr-as-me-normal. Also trigger when the user pastes a github.com/*/pull/* or dev.azure.com/*/pullrequest/* link. When no URL is provided, detects local git state and offers to review uncommitted changes or branch diff. Generates copy-paste-ready PR review comments in the user's personal voice. Never posts automatically."
 ---
 
 # Review PR As Me
+
+## Host compatibility
+
+The phase and reference files use Claude Code terminology as their
+portable baseline. When running under GitHub Copilot CLI, apply these
+mappings throughout the workflow:
+
+- Prefer the current Copilot workspace/session checkout when it matches
+  the target repository. If a separate clone is needed, use
+  `~/.copilot/repos/review-pr-as-me/{owner}/{repo}` instead of
+  `~/.claude/repos/{owner}/{repo}`.
+- Use `~/.copilot/.cache/review-pr-as-me/v1/` as the cache root and
+  `~/.copilot/VOICE.md` as the voice file.
+- Map legacy tools as follows: `Read` -> `view`, `Glob` -> `glob`,
+  `Grep` -> `rg`, `Bash` -> `powershell` on Windows, `Agent` -> `task`,
+  `AskUserQuestion` -> `ask_user`, and `Edit` -> `apply_patch`.
+- Use Copilot progress reporting plus SQL `todos` where the workflow
+  calls for `TaskCreate` or `TaskUpdate`.
+- Map model tiers to available Copilot models: `opus` ->
+  `claude-opus-4.8`, `sonnet` -> `claude-sonnet-4.6`, and `haiku` ->
+  `claude-haiku-4.5`.
+- On Windows, translate shell snippets to PowerShell or use Copilot's
+  built-in file/search tools rather than running Unix snippets verbatim.
+
+These mappings are host adaptations, not workflow changes. Other hosts
+should continue using their native tool names, model aliases, paths, and
+progress mechanisms.
 
 Generate React PR review comments in your voice. Dispatches parallel
 analysis agents, then compiles findings into copy-paste-ready output
@@ -54,8 +81,8 @@ Otherwise, proceed to Step 0 in `phases/01-setup.md`.
 
 **The invocation is a contract.** When a URL is provided, every
 decision the skill would otherwise prompt for has already been made or
-is auto-detected: the clone goes under `~/.claude/repos/{owner}/{repo}`
-by convention, the output mode is auto-detected from PR authorship
+is auto-detected: a separate clone goes under the host-specific review
+clone root described above, the output mode is auto-detected from PR authorship
 (review-comments for others' PRs, plan-fixes when the PR is yours —
 see `phases/01-setup.md` "Detect PR Ownership → Select Output Mode"),
 and any review focus rides in via the `[instructions]` slot as
@@ -70,7 +97,7 @@ is already there.
 
 ## Progress tracking
 
-Use **TaskCreate** up front and **TaskUpdate** as phases run — mark
+Use the host's progress/task mechanism up front and as phases run — mark
 each task `in_progress` when starting and `completed` when done. The
 detailed task list per mode (setup, always-on analysis agents,
 conditional agents, wrap-up) lives in `phases/01-setup.md`.
