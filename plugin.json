@@ -1,7 +1,7 @@
 {
   "name": "review-pr-as-me",
-  "version": "1.1.0",
-  "description": "Review React PRs and local code changes in your voice. Two skills: normal (full 5-agent / opus-verifier depth) and fast (4-agent / sonnet-verifier, for subsequent re-review passes).",
+  "version": "1.2.0",
+  "description": "Review React PRs and local code changes in your voice. Includes a full-depth normal skill and a lower-cost fast skill for subsequent re-review passes.",
   "author": {
     "name": "Michael Richardson"
   }

@@ -57,11 +57,12 @@ Search these directories for functions that duplicate new code:
 - Check if the project has a shared component library or design system
 
 ### Component Design
-- **Single responsibility:** Component handles data fetching + validation + state management + rendering — should be split
+- **Single responsibility:** Component handles data fetching + validation + state management + rendering — split the fetch/derive logic into a `use…()` hook; the component handles rendering only
 - **Too many props:** >7-8 props suggests the component is doing too much or needs composition
 - **Prop drilling:** Passing props through 3+ levels — consider Context or composition pattern
 - **Hardcoded values:** Magic numbers/strings that should be constants or config
 - **Overly specific:** Component built for one exact use case but could be generalized with minor changes (only flag if a second use case is visible in the codebase)
+- **Premature abstraction (AHA):** New shared component, hook, or utility created for <3 call sites where the differences between current uses aren't clearly the same kind of variation — prefer duplication until the essential interface is clear; two uses don't tell you which differences are essential
 
 ### Codebase Convention Violations
 - File naming doesn't match existing pattern (PascalCase vs kebab-case for components)
@@ -125,6 +126,41 @@ Search these directories for functions that duplicate new code:
 - Rendering 50+ items without virtualization (react-window, react-virtualized, tanstack-virtual)
 - Loading all data at once without pagination or infinite scroll
 - Large images without lazy loading or responsive sizing
+
+---
+
+## Section 4: Architecture & Module Boundaries
+
+Only apply these checks when the project uses a feature-folder structure
+(`src/features/`, `src/shared/`, `src/app/`). Skip for flat or layer-based
+layouts unless the PR explicitly introduces feature-folder boundaries.
+
+### Feature Folder Violations
+- **Cross-feature import:** Feature A imports directly from a file inside Feature B's folder — cross-feature dependencies should compose at the `app/` level or go through each feature's public barrel
+- **`shared/` imports `features/`:** A module under `shared/` imports from any feature — inverts the required direction (`shared → features → app`)
+- **Leaking barrel:** A feature's `index.ts` re-exports internal modules that should stay private; only export what external callers legitimately need
+- **Missing barrel / no public surface:** Feature has no `index.ts`, letting callers path-hack into internals — no enforced boundary
+
+### Dependency Direction Violations
+- **Wrong-way import:** A stable/general module imports a volatile/specific one (e.g. a `shared/` utility pulling from a feature, a low-level service importing a high-level orchestrator)
+- **Circular imports:** Module A imports from B which imports from A — confirm with `madge` or `eslint-plugin-import/no-cycle`
+- **No enforced boundary:** Project uses feature-folder structure but has no `eslint-plugin-import/no-restricted-paths` (or equivalent) rule — the architecture constraint is doc-only with no runnable check
+
+### Dependency Inversion Opportunities
+- **Stable module imports volatile:** A shared/inner module takes a direct import from a feature/outer module when it could receive the dependency via a callback, prop, render-prop, or context value — the inner module defines the contract; the outer implements it
+- **Hard-coded cross-boundary import where injection would do:** A hook or handler reaches directly into a sibling feature; passing the dependency in from the call site removes the coupling without ceremony
+
+### State Kind & Placement
+- **Server state in a client store:** Remote/async data held in `useState` or a global client store (Zustand, Redux, Context) instead of a query/cache layer (TanStack Query, SWR) — hand-rolled caching, stale-data bugs, and cache invalidation complexity follow
+- **Feature-local state in global store:** State only read within one feature hoisted into a global store — same defect as exporting feature internals through a barrel; nothing external needs it
+- **State lifted above the closest common parent:** State shared by two siblings lifted to a grandparent or app root when the direct parent covers all readers — broadens re-render blast radius unnecessarily (see also Section 3's "State stored too high" performance check)
+
+### What NOT to flag
+- Layer-based or flat projects without feature-folder conventions
+- Cross-feature imports that go through the feature's own public barrel (that's the intended pattern)
+- State genuinely shared across features that lives at `app/` level
+- `shared/` modules importing other `shared/` modules (same layer is fine)
+- Circular import findings when no clear call-chain is visible in the diff
 
 ---
 

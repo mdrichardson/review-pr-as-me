@@ -1,18 +1,26 @@
 ---
-name: review-pr-as-me:fast
-description: "Fast variant of review-pr-as-me:normal — same workflow but with every model stepped down one tier and Agent 5 (scope match) skipped. Use on subsequent runs after an initial review-pr-as-me:normal pass, when you're re-verifying fixes rather than reviewing a PR fresh. Triggers on /review-pr-as-me:fast, 'fast review', 'quick re-review', 're-review after fixes'."
+name: review-pr-as-me-fast
+description: "Fast variant of review-pr-as-me-normal — same workflow but with every model stepped down one tier and Agent 5 (scope match) skipped. Use on subsequent runs after an initial review-pr-as-me-normal pass, when you're re-verifying fixes rather than reviewing a PR fresh. Triggers on /review-pr-as-me-fast, 'fast review', 'quick re-review', 're-review after fixes'."
 allowed-tools: [Read, Agent, Glob, Grep, Bash, Edit, AskUserQuestion, Skill, ExitPlanMode]
 ---
 
 # Review PR As Me — Fast
+
+## Host compatibility
+
+This skill inherits the normal skill's host mappings. The relative
+`../normal/SKILL.md` path is the standalone plugin layout used by both
+Claude Code and Copilot CLI. The absolute fallbacks below also support
+each host's personal-skill layout.
 
 ## Step 0 — Load the normal workflow first
 
 Read `../normal/SKILL.md` (relative to this file's directory) in full
 before doing anything else. If the relative path fails because the
 harness resolves the skill from a different working directory, fall
-back to the absolute path
-`~/.claude/plugins/mdrichardson/review-pr-as-me/skills/normal/SKILL.md`.
+back to `~/.claude/plugins/mdrichardson/review-pr-as-me/skills/normal/SKILL.md`
+under Claude Code or
+`~/.copilot/skills/review-pr-as-me-normal/SKILL.md` under Copilot CLI.
 
 If neither resolves, halt and report the error — fast mode only
 documents the deltas from normal, so it can't run a review without
@@ -117,7 +125,7 @@ Task-list adjustments (apply at the points the normal flow creates tasks):
 
 ## When to use fast vs normal
 
-- **`/review-pr-as-me:normal`** — first-pass review, unfamiliar PR, high-stakes
+- **`/review-pr-as-me-normal`** — first-pass review, unfamiliar PR, high-stakes
   merge, or whenever scope-match against the PR description matters.
-- **`/review-pr-as-me:fast`** — re-review after fixes have landed, iterating
+- **`/review-pr-as-me-fast`** — re-review after fixes have landed, iterating
   on a PR, or any subsequent pass where scope has already been verified.

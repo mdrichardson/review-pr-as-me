@@ -4,7 +4,7 @@ Most of Phase 2 (pre-compute) produces output that depends only on stable
 inputs (config files, source-tree contents, PR head SHA). Recomputing it
 on every invocation is the dominant wall-time cost on subsequent runs
 against the same repo. The skill keeps a per-project cache so successive
-runs (and especially `/review-pr-as-me:fast` re-reviews) skip work whose
+runs (and especially `/review-pr-as-me-fast` re-reviews) skip work whose
 inputs haven't changed.
 
 ## Layout
