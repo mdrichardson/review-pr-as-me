@@ -3,7 +3,7 @@
 Dispatch up to 9 parallel analysis agents over the pre-computed inputs
 from Phase 2. Each agent returns a list of findings keyed to file + line.
 
-> **Fast-mode override.** If you loaded `../fast/SKILL.md`, apply its
+> **Fast-mode override.** If you loaded `../../rprf/SKILL.md`, apply its
 > model-stepdown override table (and Agent 5 skip rule) before using
 > the model assignments below. The fast skill enumerates which phase
 > files its overrides target.
@@ -27,7 +27,7 @@ defaults, do NOT improvise, do NOT silently continue.
 ## Checklist
 
 Read `references/react-review-checklist.md` (relative to this skill's
-directory: `~/.claude/plugins/mdrichardson/review-pr-as-me/skills/normal/references/`)
+directory: `~/.claude/plugins/mdrichardson/review-pr-as-me/skills/rpr/references/`)
 for the detailed checklist that agents reference.
 
 ## Dispatch

@@ -1,7 +1,7 @@
 {
   "name": "review-pr-as-me",
-  "version": "1.3.0",
-  "description": "Review React PRs and local code changes in your voice. Includes full-depth and fast review skills with rpr and rprf shorthand aliases.",
+  "version": "1.4.0",
+  "description": "Review React PRs and local code changes in your voice with the canonical rpr and rprf skills.",
   "author": {
     "name": "Michael Richardson"
   }

@@ -1,22 +1,89 @@
-# Setup Steps Reference
+# Phase 1 — Setup
 
-Detailed procedures for Steps 0, 1, and 2. Read this file when executing those steps.
+Entry point for the skill after invocation parsing. Sets `repo_path`,
+`output_mode`, the diff to review, and the base task list. Subsequent
+phases assume these are in place.
 
 ## Contents
 
-- [Step 0: No-URL Local Review Mode](#step-0-no-url-local-review-mode) — git-state detection, build available options, output mode selection, agent context for local reviews, passing user instructions
-- [Step 1: Parse URL and Fetch PR](#step-1-parse-url-and-fetch-pr) — GitHub/ADO URL parsing, metadata + diff fetch, existing-comment fetch, building `pr_comments_list`, PR ownership detection → output mode
-- [Step 2: Ensure Local Repo Clone](#step-2-ensure-local-repo-clone) — locate or clone, **worktree-safe targeted fetch** (replaces the old `git fetch --all` approach), checkout the PR branch, set working directory
+- [Preconditions](#preconditions) — empty (entry point)
+- [Re-entry note](#re-entry-note) — avoid re-cloning / re-prompting if `repo_path` is already set
+- [Required Tasks (base list)](#required-tasks-base-list) — setup tasks, always-on analysis agents, wrap-up tasks; conditional agents created in Phase 2
+- [Step 0: No-URL Local Review Mode](#step-0-no-url-local-review-mode) — git-state detection, available-options builder, output-mode prompt, agent-context overrides for local reviews
+- [Step 1: Parse URL and Fetch PR](#step-1-parse-url-and-fetch-pr) — GitHub/ADO URL parsing, metadata + diff + existing-comment fetch, `pr_comments_list` build, PR-ownership → `output_mode`
+- [Step 2: Ensure Local Repo Clone](#step-2-ensure-local-repo-clone) — locate or clone, worktree-safe targeted fetch, PR-branch checkout
+- [Next](#next-read-phases02-pre-computemd)
+
+## Preconditions
+
+`01-setup.md` has no preconditions — it's the entry point.
+
+## Re-entry note
+
+If `repo_path` is already set in this conversation, Steps 1–2 are done
+— only re-read this file for the Required Tasks reference table or to
+handle a mode-switch. Do NOT re-clone, do NOT re-checkout, do NOT
+re-prompt for the local-vs-PR option.
+
+## Required Tasks (base list)
+
+Create the base task list up front. Conditional-agent tasks (Agent 5
+Scope-match, Agent 6 Suppression-removability, Agent 7
+Abstraction-coupling) are NOT created here — they're created at the
+end of Phase 2 (pre-compute) once their gating inputs are known.
+
+The setup tasks vary by mode; the always-on analysis core and wrap-up
+tasks are mode-dependent in shape but not in agent count.
+
+**Setup tasks** (mode-dependent):
+- PR URL mode (create immediately): `"Parse PR URL and fetch metadata"` → `"Fetch existing PR comments"` → `"Ensure local repo clone is up to date"` → `"Detect codebase standards"`
+- Local mode (create after Step 0 selection): `"Detect local git state and gather diff"` → `"Detect codebase standards"`
+
+Omit `"Fetch existing PR comments"` when the PR has no comments (first
+review pass) — the fetch step itself runs unconditionally in PR mode,
+but if the response is empty there's no meaningful progress to track
+and the subsequent dedup/status steps are silent no-ops.
+
+**Always-on analysis tasks** (create after setup tasks):
+```
+"Analyze: Hooks & React patterns"               activeForm: "Analyzing hooks & React patterns"
+"Analyze: Reuse & standards"                    activeForm: "Analyzing reuse & standards"
+"Analyze: Performance & edge cases"             activeForm: "Analyzing performance & edge cases"
+"Analyze: Cross-cutting impact"                 activeForm: "Analyzing cross-cutting impact"
+"Analyze: Comment hygiene"                      activeForm: "Analyzing comment hygiene"
+"Analyze: Other patterns"                       activeForm: "Analyzing other patterns"
+```
+
+These six always-on agents (1, 2, 3, 4, 8, 9) run unconditionally. The
+three conditional agents (5, 6, 7) are tasked from Phase 2 — do not
+create their tasks here.
+
+**Wrap-up task** (mode-dependent):
+- review-comments mode (PR URL): `"Deduplicate findings"` → `"Verify findings ({N} parallel Opus)"` → `"Classify previous comments"` → `"Walk through findings (post per approval)"`
+- review-comments mode (local): `"Deduplicate findings"` → `"Verify findings ({N} parallel Opus)"` → `"Walk through findings (copy/paste output)"` (no PR to post to; output rendered to terminal)
+- plan-fixes mode: `"Deduplicate findings"` → `"Verify findings ({N} parallel Opus)"` → `"Walk through fixes"` → `"Verify applied fixes"`
+
+Omit `"Classify previous comments"` when the user authored zero
+comments on the PR (nothing to classify).
+
+The analysis tasks run in parallel during Phase 3 (analyze). Mark them
+all `in_progress` at the same time when dispatching, and `completed`
+as each returns.
 
 ---
 
 ## Step 0: No-URL Local Review Mode
 
-When no URL is provided (or only instructions are provided), detect the git state of the **current working directory** and present the user with relevant options. If the user provided instructions, store them as `review_instructions` — they will be passed to all analysis agents in Steps 4 and 5 as additional focus guidance.
+When no URL is provided (or only instructions are provided), detect the
+git state of the **current working directory** and present the user
+with relevant options. If the user provided instructions, store them
+as `review_instructions` — they will be passed to all analysis agents
+in Phases 3 and 4 as additional focus guidance.
 
 ### Acknowledge Instructions
 
-If `review_instructions` is set, confirm them back to the user before presenting options. Include this in the `AskUserQuestion` prompt:
+If `review_instructions` is set, confirm them back to the user before
+presenting options. Include this in the `AskUserQuestion` prompt:
 
 > **Review focus:** "focus on the custom hooks and ignore styling changes"
 
@@ -44,7 +111,8 @@ git rev-parse --verify main >/dev/null 2>&1 && \
 
 ### Build Available Options
 
-Based on the detection results, build a list of options. **Only show options that are actually available:**
+Based on the detection results, build a list of options. **Only show
+options that are actually available:**
 
 | Condition | Option |
 |-----------|--------|
@@ -69,7 +137,8 @@ Use `AskUserQuestion` to present the available options. Example:
 >
 > Pick a number or paste a URL:
 
-Include brief context counts (files modified, commits ahead) when available to help the user decide.
+Include brief context counts (files modified, commits ahead) when
+available to help the user decide.
 
 ### Handle Selection
 
@@ -78,7 +147,7 @@ Include brief context counts (files modified, commits ahead) when available to h
 2. Get the list of changed files: `git diff --name-only` and `git diff --cached --name-only`
 3. Set `repo_path` to the current working directory
 4. Set `review_title` to "Uncommitted changes in `{repo_name}`" (derive repo name from directory)
-5. **Skip Steps 1 and 2** — proceed directly to Step 3 (Detect Codebase Standards)
+5. **Skip Steps 1 and 2** — proceed directly to Phase 2 (pre-compute).
 
 **Option: Review branch vs main**
 1. Determine the default branch (`main` or `master` — whichever exists)
@@ -87,40 +156,46 @@ Include brief context counts (files modified, commits ahead) when available to h
 4. Get branch summary: `git log --oneline {default_branch}..HEAD`
 5. Set `repo_path` to the current working directory
 6. Set `review_title` to "Branch `{branch_name}` vs `{default_branch}`"
-7. **Skip Steps 1 and 2** — proceed directly to Step 3 (Detect Codebase Standards)
+7. **Skip Steps 1 and 2** — proceed directly to Phase 2 (pre-compute).
 
 **Option: Paste a PR link**
-1. Ask the user for the URL via `AskUserQuestion`
-2. Once provided, proceed to Step 1 as normal
+1. Ask the user for the URL via `AskUserQuestion`.
+2. Once provided, proceed to Step 1 as normal.
 
 ### Output Mode Selection
 
-After the user picks what to review (uncommitted changes or branch vs main), ask a follow-up question to determine the output mode. Use `AskUserQuestion`:
+After the user picks what to review (uncommitted changes or branch vs
+main), ask a follow-up question to determine the output mode. Use
+`AskUserQuestion`:
 
 > **What should I do with findings?**
 > 1. **Generate review comments** — copy-paste-ready comments in your voice
 > 2. **Plan fixes** — walk through each finding and fix the ones you approve
 
 Store the selection as `output_mode`:
-- `"review-comments"` → existing Step 6 (compile comments in your voice)
-- `"plan-fixes"` → Step 6b (interactive fix walkthrough)
+- `"review-comments"` → runs the per-finding posting walkthrough via `phases/05a-walkthrough-comments.md`. Local-mode reviews still go through this file, but the posting step is replaced with a copy/paste render since there's no PR to post to.
+- `"plan-fixes"` → runs the interactive walkthrough via `phases/walkthrough/`.
 
 **Skip this question when:**
 - User selected "Paste a PR link" → `output_mode` is auto-detected in Step 1 based on PR authorship (review-comments if the PR is someone else's, plan-fixes if it's yours). See "Detect PR Ownership → Select Output Mode" at the end of Step 1.
 - This question only applies to local review options where there's no PR metadata to infer from.
 
-Now create the appropriate task list (review-comments or plan-fixes variant) based on the user's selections.
+Now create the appropriate task list (review-comments or plan-fixes
+variant) based on the user's selections.
 
 ### Agent Context for Local Reviews
 
-When running in local review mode (no PR), the agent prompts in Steps 4-5 should replace PR-specific language:
+When running in local review mode (no PR), the agent prompts in Phase 3
+(analyze) and Phase 4 (verify) should replace PR-specific language:
 - Instead of "analyzing a React PR", say "analyzing local code changes"
 - Instead of PR title/description, provide the `review_title` and branch name
 - The `repo_path`, diff format, and everything else remains the same
 
 ### Passing User Instructions
 
-If `review_instructions` is set (the user provided free-text instructions), append the following block to **every** agent prompt — the 4 Sonnet analysis agents (Step 4) AND the Opus verification agent (Step 5):
+If `review_instructions` is set (the user provided free-text instructions),
+append the following block to **every** agent prompt — the analysis
+agents (Phase 3) AND the verification agents (Phase 4):
 
 ```
 ADDITIONAL REVIEWER INSTRUCTIONS (from the user):
@@ -131,7 +206,8 @@ ask you to ignore certain files, or emphasize particular concerns. Treat them
 as top-level guidance for this review.
 ```
 
-This applies in both local review mode and PR URL mode — the invocation syntax supports instructions in either case.
+This applies in both local review mode and PR URL mode — the invocation
+syntax supports instructions in either case.
 
 ---
 
@@ -166,7 +242,9 @@ Also fetch the diff:
 - GitHub: `gh pr diff {number} --repo {owner}/{repo}`
 - ADO: `az repos pr diff --id {id} --org "https://dev.azure.com/{org}" --project "{project}"`
 
-If the ADO diff command is unavailable, fetch the diff via: `az repos pr list --id {id}` to get source/target branches, then `git diff {target}...{source}`.
+If the ADO diff command is unavailable, fetch the diff via:
+`az repos pr list --id {id}` to get source/target branches, then
+`git diff {target}...{source}`.
 
 Record from the metadata:
 - PR title, description, URL
@@ -181,10 +259,10 @@ After metadata, pull every existing comment/thread on the PR. These feed
 two features in later steps:
 
 1. **Silent dedup** — any new finding whose file + line overlaps an
-   existing thread (any author) is dropped in Step 5a. No point raising
-   what's already on the PR.
+   existing thread (any author) is dropped in Phase 4 dedup. No point
+   raising what's already on the PR.
 2. **Previous-comments status section** — threads authored by the user
-   are reported back in Step 6 with their resolution status, so the
+   are reported back in Phase 5a with their resolution status, so the
    user can see at a glance how each prior comment was handled.
 
 Fetch each thread's author, file path, line, body, and resolution
@@ -252,7 +330,7 @@ For ADO, "mine" = any thread whose first non-system comment's
 
 ### Build `pr_comments_list`
 
-Normalize into a single structured list used by Steps 5 and 6:
+Normalize into a single structured list used by Phases 4 and 5a:
 
 ```
 pr_comments_list: [
@@ -318,7 +396,7 @@ the user can course-correct after the fact by stopping and re-invoking):
   > fixes interactively instead of generating voice comments. Edits will
   > apply to the local clone at `~/.claude/repos/{owner}/{repo}`. If
   > you'd rather edit your own working copy, stop here and re-run
-  > `/review-pr-as-me` from that directory with no URL.
+  > `/rpr` from that directory with no URL.
 - Someone else's PR:
   > Reviewing {author}'s PR — using review-comments mode.
 
@@ -331,7 +409,9 @@ decision already set `output_mode` (local mode's Step 0 question).
 
 ## Step 2: Ensure Local Repo Clone
 
-The skill needs full file context to find existing utilities, understand patterns, and verify findings. A local clone is **required** — do not proceed without one.
+The skill needs full file context to find existing utilities, understand
+patterns, and verify findings. A local clone is **required** — do not
+proceed without one.
 
 ### Locate or Clone the Repo
 
@@ -362,13 +442,13 @@ GH_HOST={host} gh repo clone {owner}/{repo} ~/.claude/repos/{owner}/{repo}
 
 ### Update the Clone (worktree-safe, targeted fetch)
 
-**Always** ensure the clone is current before scanning, even if it already
-existed — but do NOT use `git fetch --all --prune` or `git checkout
-{baseRefName} && git pull`. Both assume the local clone is on a
-specific branch and that all remotes need updating; on multi-remote
-enterprise repos that's wasted network, and on a clone that's
-mid-checkout from a previous PR review, the `git checkout` step can
-fail or move the wrong ref.
+**Always** ensure the clone is current before scanning, even if it
+already existed — but do NOT use `git fetch --all --prune` or
+`git checkout {baseRefName} && git pull`. Both assume the local clone
+is on a specific branch and that all remotes need updating; on
+multi-remote enterprise repos that's wasted network, and on a clone
+that's mid-checkout from a previous PR review, the `git checkout` step
+can fail or move the wrong ref.
 
 Instead, fetch only the two refs we actually need, and update the local
 `{baseRefName}` ref **without changing what's checked out**:
@@ -386,7 +466,7 @@ git fetch origin {baseRefName}:{baseRefName} {headRefName}
 This works regardless of:
 - Which branch is currently checked out in the clone (no implicit
   checkout)
-- Whether the user is running `/review-pr-as-me` from a worktree of
+- Whether the user is running `/rpr` from a worktree of
   another repo (the clone at `~/.claude/repos/...` is independent)
 - Whether `{baseRefName}` is `main`, `master`, `develop`, a release
   branch, or anything else (it's just a ref name to fetch)
@@ -421,4 +501,10 @@ tip is in `FETCH_HEAD` — no second `git fetch` needed.
 
 ### Set Working Directory
 
-All subsequent steps (standards detection, agent dispatch) operate from this local clone path. Pass the full path to each agent so they can read files and search the codebase.
+All subsequent phases (standards detection, agent dispatch) operate
+from this local clone path. Pass the full path to each phase as
+`repo_path`.
+
+---
+
+## Next: read `phases/02-pre-compute.md`.

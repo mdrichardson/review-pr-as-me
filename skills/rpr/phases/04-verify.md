@@ -3,7 +3,7 @@
 Deduplicate findings, verify each with a per-finding (or per-file
 batched) Opus agent, and classify the user's previous PR comments.
 
-> **Fast-mode override.** If you loaded `../fast/SKILL.md`, apply its
+> **Fast-mode override.** If you loaded `../../rprf/SKILL.md`, apply its
 > model-stepdown override table before using the model assignments
 > below. The fast skill enumerates which phase files its overrides
 > target.

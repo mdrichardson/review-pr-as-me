@@ -1,10 +1,10 @@
 {
-  "skill_name": "review-pr-as-me:normal",
+  "skill_name": "review-pr-as-me:rpr",
   "evals": [
     {
       "id": 1,
       "eval_name": "ghe-url-one-shot",
-      "prompt": "/review-pr-as-me:normal https://microsoft.ghe.com/bic/copilot-studio-ux/pull/806",
+      "prompt": "/rpr https://microsoft.ghe.com/bic/copilot-studio-ux/pull/806",
       "expected_output": "First action is TaskCreate populating the PR-URL-mode task list. Second action is gh pr view (with GH_HOST=microsoft.ghe.com) or equivalent metadata fetch. No AskUserQuestion issued unless the local clone at ~/.claude/repos/bic/copilot-studio-ux/ is genuinely missing.",
       "assertions": [
         {
@@ -25,7 +25,7 @@
     {
       "id": 2,
       "eval_name": "github-url-with-focus-instructions",
-      "prompt": "/review-pr-as-me:normal https://github.com/facebook/react/pull/28000 focus on effect dependency correctness",
+      "prompt": "/rpr https://github.com/facebook/react/pull/28000 focus on effect dependency correctness",
       "expected_output": "review_instructions set to 'focus on effect dependency correctness'. Instructions passed to all 4 analysis agents and to per-finding verifiers. No clarifying questions before Step 3.",
       "assertions": [
         {
