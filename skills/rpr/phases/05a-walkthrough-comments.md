@@ -245,35 +245,65 @@ Capture the returned JSON's `html_url` to show in the final summary.
 
 ### ADO
 
-Inline comment on a file/line:
-```bash
-az repos pr thread create \
-  --id {id} \
-  --org "https://dev.azure.com/{org}" \
-  --project "{project}" \
-  --comments "{body_text}" \
-  --status active \
-  --path "{file}" \
-  --right-file-start-line {line} \
-  --right-file-end-line {line} \
-  --right-file-start-offset 1 \
-  --right-file-end-offset 1 \
-  --output json
+Serialize one request body to a temporary JSON file for each approved
+comment. JSON-encode `body_text`; do not interpolate unescaped review
+text into JSON. Normalize `{file}` to exactly one leading `/`.
+
+Inline comment on a file/line request body:
+
+```json
+{
+  "comments": [
+    {
+      "parentCommentId": 0,
+      "content": "{body_text_json_escaped}",
+      "commentType": 1
+    }
+  ],
+  "status": 1,
+  "threadContext": {
+    "filePath": "/{file}",
+    "rightFileStart": { "line": {line}, "offset": 1 },
+    "rightFileEnd": { "line": {line}, "offset": 1 }
+  }
+}
 ```
 
-PR-wide comment (no `--path` / line flags):
+PR-wide comment request body:
+
+```json
+{
+  "comments": [
+    {
+      "parentCommentId": 0,
+      "content": "{body_text_json_escaped}",
+      "commentType": 1
+    }
+  ],
+  "status": 1
+}
+```
+
+Post either body through the ADO REST resource:
+
 ```bash
-az repos pr thread create \
-  --id {id} \
+az devops invoke \
+  --area git \
+  --resource pullRequestThreads \
+  --route-parameters \
+    project="{project}" \
+    repositoryId="{repository.id}" \
+    pullRequestId="{id}" \
   --org "https://dev.azure.com/{org}" \
-  --project "{project}" \
-  --comments "{body_text}" \
-  --status active \
+  --api-version "7.1" \
+  --http-method POST \
+  --in-file "{thread_body_file}" \
   --output json
 ```
 
 Capture the returned thread's `_links.self.href` (or assemble the
-deep link from `id` + thread id) for the final summary.
+deep link from `id` + thread id) for the final summary. Delete only the
+temporary request file after the command completes.
 
 ### Posting hard rules
 

@@ -97,7 +97,7 @@ Phase 5a (review-comments per-finding posting walkthrough — see
 suffix, and per-finding Post comment / I will comment / Skip prompt), and
 the plan-fixes walkthrough under `phases/walkthrough/` — applies verbatim,
 with the model assignments above substituted and Agent 5 omitted. (You
-already loaded the router in Step 0; the phase files are loaded JIT
+already loaded `rpr` in Step 0; the phase files are loaded JIT
 as you enter each phase.)
 
 **Cache-hit shortcut for fast mode.** The PR-level cache slot
@@ -110,7 +110,7 @@ skipping pre-compute."` so they know fast mode is genuinely fast and
 not waiting on a re-scan.
 
 **PR-comment reading is orthogonal to agent dispatch.** The fetch is a
-single `gh api` / `az repos pr thread list` call, dedup is a
+single `gh api` / `az devops invoke --resource pullRequestThreads` call, dedup is a
 file+line-range comparison, and status classification is a deterministic
 lookup against GitHub's `isResolved`/`isOutdated` or ADO's `status`
 field. None of it goes through a subagent, so there is no model tier

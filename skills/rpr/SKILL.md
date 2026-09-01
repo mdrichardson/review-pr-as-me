@@ -11,10 +11,15 @@ The phase and reference files use Claude Code terminology as their
 portable baseline. When running under GitHub Copilot CLI, apply these
 mappings throughout the workflow:
 
-- Prefer the current Copilot workspace/session checkout when it matches
-  the target repository. If a separate clone is needed, use
-  `~/.copilot/repos/review-pr-as-me/{owner}/{repo}` instead of
-  `~/.claude/repos/{owner}/{repo}`.
+- Prefer the current Copilot workspace/session checkout when a normalized
+  Git remote matches the PR metadata. Use it as a fetch source and create
+  a detached review worktree so the user's branch and working tree are
+  untouched. If a separate clone is needed, use
+  `~/.copilot/repos/review-pr-as-me/{path-to-repo}` instead of the
+  `~/.claude/repos/{path-to-repo}` baseline. Here `{path-to-repo}` is
+  `{owner}/{repo}` for GitHub and `{org}/{project}/{repo}` for ADO. Put
+  detached review worktrees under
+  `~/.copilot/worktrees/review-pr-as-me/`.
 - Use `~/.copilot/.cache/review-pr-as-me/v1/` as the cache root and
   `~/.copilot/VOICE.md` as the voice file.
 - Map legacy tools as follows: `Read` -> `view`, `Glob` -> `glob`,
@@ -52,7 +57,8 @@ unilaterally. Concretely:
 - Never post comments in bulk and never post without explicit
   per-finding approval. The review-comments walkthrough is the ONLY
   place writes against the PR are permitted (`gh api … /comments`,
-  `gh pr comment`, `az repos pr thread create`) — and only after the
+  `gh pr comment`, `az devops invoke --resource pullRequestThreads`)
+  — and only after the
   user picks "Post comment" for that specific finding. "Skip" and
   "I will comment" both post nothing — "I will comment" is a manual
   hand-off where the user posts in the PR UI themselves. No batch
@@ -81,8 +87,9 @@ Otherwise, proceed to Step 0 in `phases/01-setup.md`.
 
 **The invocation is a contract.** When a URL is provided, every
 decision the skill would otherwise prompt for has already been made or
-is auto-detected: a separate clone goes under the host-specific review
-clone root described above, the output mode is auto-detected from PR authorship
+is auto-detected: repository selection prefers a matching current
+Copilot checkout and otherwise uses the host-specific review clone root
+described above, the output mode is auto-detected from PR authorship
 (review-comments for others' PRs, plan-fixes when the PR is yours —
 see `phases/01-setup.md` "Detect PR Ownership → Select Output Mode"),
 and any review focus rides in via the `[instructions]` slot as
@@ -91,9 +98,10 @@ them to repeat decisions they already encoded in the command, and
 breaks the one-shot flow that URL-with-instructions invocation is
 specifically designed for. The only user prompt permitted before Phase
 2 is the Step-2 "clone not found at {path} — shall I create it?"
-question, and only when that directory is genuinely missing. If you
-feel tempted to ask anything else, re-read the invocation — the answer
-is already there.
+question, and only when neither the current Copilot checkout nor an
+existing review clone matches the PR repository. If you feel tempted
+to ask anything else, re-read the invocation — the answer is already
+there.
 
 ## Progress tracking
 

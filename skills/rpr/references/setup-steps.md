@@ -6,7 +6,7 @@ Detailed procedures for Steps 0, 1, and 2. Read this file when executing those s
 
 - [Step 0: No-URL Local Review Mode](#step-0-no-url-local-review-mode) — git-state detection, build available options, output mode selection, agent context for local reviews, passing user instructions
 - [Step 1: Parse URL and Fetch PR](#step-1-parse-url-and-fetch-pr) — GitHub/ADO URL parsing, metadata + diff fetch, existing-comment fetch, building `pr_comments_list`, PR ownership detection → output mode
-- [Step 2: Ensure Local Repo Clone](#step-2-ensure-local-repo-clone) — locate or clone, **worktree-safe targeted fetch** (replaces the old `git fetch --all` approach), checkout the PR branch, set working directory
+- [Step 2: Select a Repo Source and Detached Review Worktree](#step-2-select-a-repo-source-and-detached-review-worktree) — prefer a matching workspace, clone only as fallback, fetch exact refs, isolate the PR head
 
 ---
 
@@ -159,14 +159,23 @@ gh pr view {number} --repo {owner}/{repo} --json title,body,author,files,additio
 
 **ADO:**
 ```bash
-az repos pr show --id {id} --org "https://dev.azure.com/{org}" --project "{project}" --output json
+az repos pr show --id {id} \
+  --org "https://dev.azure.com/{org}" \
+  --output json
 ```
 
-Also fetch the diff:
-- GitHub: `gh pr diff {number} --repo {owner}/{repo}`
-- ADO: `az repos pr diff --id {id} --org "https://dev.azure.com/{org}" --project "{project}"`
+`az repos pr show` does not accept `--project`; the PR URL's project is
+validated against the returned `repository.project` instead. Record
+`repository.id`, `repository.remoteUrl`, and `repository.sshUrl` for
+the thread request and local-checkout matching in Step 2.
 
-If the ADO diff command is unavailable, fetch the diff via: `az repos pr list --id {id}` to get source/target branches, then `git diff {target}...{source}`.
+Also fetch the GitHub diff with:
+`gh pr diff {number} --repo {owner}/{repo}`.
+
+Azure DevOps CLI has no `az repos pr diff` command. For ADO, record
+`sourceRefName` and `targetRefName` from the metadata response; Step 2
+fetches those exact refs and generates `git diff {baseSha}...{headSha}`
+from the detached review worktree.
 
 Record from the metadata:
 - PR title, description, URL
@@ -234,10 +243,25 @@ For GitHub Enterprise, prefix with `GH_HOST={host}`.
 **ADO** (threads expose status + file/line in a single call):
 
 ```bash
-az repos pr thread list --id {id} \
-  --org "https://dev.azure.com/{org}" --project "{project}" \
+az devops invoke \
+  --area git \
+  --resource pullRequestThreads \
+  --route-parameters \
+    project="{project}" \
+    repositoryId="{repository.id}" \
+    pullRequestId="{id}" \
+  --org "https://dev.azure.com/{org}" \
+  --api-version "7.1" \
+  --http-method GET \
   --output json
 ```
+
+The route parameters are required by the
+`{project}/_apis/git/repositories/{repositoryId}/pullRequests/{pullRequestId}/threads`
+resource route. `--api-version "7.1"` supplies its required
+`api-version` query parameter. The response object contains the threads
+in `value`; iterate over `response.value`, not the response object
+itself.
 
 Each thread has `status` (`active`, `fixed`, `closed`, `wontFix`,
 `pending`, `byDesign`, `unknown`), `threadContext.filePath`,
@@ -316,9 +340,9 @@ the user can course-correct after the fact by stopping and re-invoking):
 - Own PR:
   > Detected this PR is yours — using plan-fixes mode to walk through
   > fixes interactively instead of generating voice comments. Edits will
-  > apply to the local clone at `~/.claude/repos/{owner}/{repo}`. If
-  > you'd rather edit your own working copy, stop here and re-run
-  > `/rpr` from that directory with no URL.
+  > apply to the detached review worktree selected in Step 2. If you'd
+  > rather edit your existing working copy, stop here and re-run `/rpr`
+  > from that directory with no URL.
 - Someone else's PR:
   > Reviewing {author}'s PR — using review-comments mode.
 
@@ -329,18 +353,56 @@ decision already set `output_mode` (local mode's Step 0 question).
 
 ---
 
-## Step 2: Ensure Local Repo Clone
+## Step 2: Select a Repo Source and Detached Review Worktree
 
-The skill needs full file context to find existing utilities, understand patterns, and verify findings. A local clone is **required** — do not proceed without one.
+The skill needs full file context to find existing utilities, understand
+patterns, and verify findings. A local repository source and an isolated
+review worktree are **required** — do not proceed without them.
 
-### Locate or Clone the Repo
+### Prefer a Matching Copilot Workspace
 
-1. **Check `~/.claude/repos/`** for an existing clone at `~/.claude/repos/{owner}/{repo}` (GitHub) or `~/.claude/repos/{org}/{project}/{repo}` (ADO).
-2. **If not found**, STOP and ask the user:
+Before looking for or creating a review clone, inspect the current
+Copilot workspace/session checkout:
 
-> "I need a local clone of **{owner}/{repo}** to do a thorough review -- without it I can't search for existing utilities or understand codebase patterns. Want me to clone it to `~/.claude/repos/{owner}/{repo}`?"
+1. Confirm it is a Git worktree with
+   `git -C "{workspace_path}" rev-parse --is-inside-work-tree`.
+2. Read every configured remote URL, not just the directory name:
 
-3. **If the user agrees**, clone it:
+```bash
+git -C "{workspace_path}" remote
+git -C "{workspace_path}" remote get-url --all {remote}
+```
+
+3. Normalize each URL by removing credentials, a trailing slash, and a
+   trailing `.git`, URL-decoding path segments, and comparing
+   case-insensitively. Accept the workspace only when a remote resolves
+   to the exact target identity:
+   - GitHub/GHE: `{host}/{owner}/{repo}`.
+   - ADO HTTPS or SSH: `{org}/{project}/{repo}`. Compare against the PR
+     URL plus `repository.remoteUrl` and `repository.sshUrl` returned by
+     `az repos pr show`; support both
+     `dev.azure.com/{org}/{project}/_git/{repo}` and
+     `ssh.dev.azure.com:v3/{org}/{project}/{repo}` forms.
+
+Do not accept a checkout based only on its folder name or repo basename.
+When a remote matches, set `source_repo` to the workspace path and
+`source_remote` to that remote. Do not clone and do not switch or modify
+the workspace's current branch or working tree.
+
+### Fall Back to an Existing or New Review Clone
+
+If the current workspace does not match:
+
+1. Check `~/.claude/repos/` for an existing clone at
+   `~/.claude/repos/{owner}/{repo}` (GitHub) or
+   `~/.claude/repos/{org}/{project}/{repo}` (ADO), and validate its
+   remote identity with the same rules.
+2. Only when neither the workspace nor an existing clone matches, STOP
+   and ask:
+
+> "I need a local repository for **{path-to-repo}** to do a thorough review -- without it I can't search for existing utilities or understand codebase patterns. Want me to clone it to `~/.claude/repos/{path-to-repo}`?"
+
+3. If the user agrees, clone it:
 
 **GitHub:**
 ```bash
@@ -360,65 +422,64 @@ mkdir -p ~/.claude/repos/{owner}
 GH_HOST={host} gh repo clone {owner}/{repo} ~/.claude/repos/{owner}/{repo}
 ```
 
-### Update the Clone (worktree-safe, targeted fetch)
+Set `source_repo` to the validated or new clone and `source_remote` to
+its matching remote (normally `origin`).
 
-**Always** ensure the clone is current before scanning, even if it already
-existed — but do NOT use `git fetch --all --prune` or `git checkout
-{baseRefName} && git pull`. Both assume the local clone is on a
-specific branch and that all remotes need updating; on multi-remote
-enterprise repos that's wasted network, and on a clone that's
-mid-checkout from a previous PR review, the `git checkout` step can
-fail or move the wrong ref.
+### Fetch Exact PR Refs Without Switching the Source
 
-Instead, fetch only the two refs we actually need, and update the local
-`{baseRefName}` ref **without changing what's checked out**:
+Fetch only the base and head refs into namespaced refs. This must not
+checkout, reset, or update a branch in `source_repo`.
+Set `{prId}` to the parsed `{number}` for GitHub or `{id}` for ADO and
+use that same value in every namespaced ref and worktree path below.
+
+**GitHub/GHE:**
 
 ```bash
-cd ~/.claude/repos/{path-to-repo}
-
-# Fetch only the base and head refs. Update local {baseRefName} ref
-# even when not checked out (the `:{baseRefName}` is fast-forward-only —
-# safe). The head fetch puts the PR's tip in FETCH_HEAD for `gh pr
-# checkout` / `git checkout FETCH_HEAD` to use.
-git fetch origin {baseRefName}:{baseRefName} {headRefName}
+git -C "{source_repo}" fetch {source_remote} \
+  "+refs/heads/{baseRefName}:refs/rpr/{prId}/base" \
+  "+refs/pull/{prId}/head:refs/rpr/{prId}/head"
 ```
 
-This works regardless of:
-- Which branch is currently checked out in the clone (no implicit
-  checkout)
-- Whether the user is running `/rpr` from a worktree of
-  another repo (the clone at `~/.claude/repos/...` is independent)
-- Whether `{baseRefName}` is `main`, `master`, `develop`, a release
-  branch, or anything else (it's just a ref name to fetch)
-
-If the `{baseRefName}:{baseRefName}` form fails because the local ref
-diverged (rare — only happens if a previous review left local commits
-on the base branch), fall back to a non-fast-forward update:
-```bash
-git fetch origin {baseRefName} && git update-ref refs/heads/{baseRefName} FETCH_HEAD
-```
-
-### Checkout the PR Branch
-
-From the local clone directory:
-
-**GitHub:**
-```bash
-gh pr checkout {number}
-```
-For GitHub Enterprise, prefix with `GH_HOST={host}`. (`gh pr checkout`
-performs its own targeted fetch of the PR head, so the prior step's
-`{headRefName}` fetch is redundant only on the GitHub path — keep it
-anyway; an extra fetched ref is cheaper than a branch in the wrong
-state.)
+For GitHub Enterprise, run the fetch against the remote that matched the
+enterprise host.
 
 **ADO:**
+
 ```bash
-git checkout FETCH_HEAD
+git -C "{source_repo}" fetch {source_remote} \
+  "+{targetRefName}:refs/rpr/{prId}/base" \
+  "+{sourceRefName}:refs/rpr/{prId}/head"
 ```
-The `{headRefName}` was already fetched by the previous step, so its
-tip is in `FETCH_HEAD` — no second `git fetch` needed.
+
+Use the full `refs/heads/...` values returned by `az repos pr show`.
+Then resolve `baseSha` and `headSha` from the two namespaced refs.
+
+### Create or Reuse a Safe Detached Worktree
+
+Use a path keyed by provider repository, PR ID, and fetched head SHA:
+
+```bash
+baseSha=$(git -C "{source_repo}" rev-parse "refs/rpr/{prId}/base")
+headSha=$(git -C "{source_repo}" rev-parse "refs/rpr/{prId}/head")
+worktree_path=~/.claude/worktrees/review-pr-as-me/{path-to-repo}/pr-{prId}-${headSha}
+mkdir -p "$(dirname "$worktree_path")"
+git -C "{source_repo}" worktree add --detach "$worktree_path" "$headSha"
+```
+
+If that path already exists, reuse it only when it is a registered
+worktree at exactly `headSha` and `git status --porcelain` is empty.
+Otherwise choose a new unique sibling path. Never reset, clean, remove,
+or overwrite an existing or dirty worktree.
+
+For ADO, now generate the review diff from the fetched commits:
+
+```bash
+git -C "$worktree_path" diff --find-renames "$baseSha...$headSha"
+git -C "$worktree_path" diff --name-only "$baseSha...$headSha"
+```
 
 ### Set Working Directory
 
-All subsequent steps (standards detection, agent dispatch) operate from this local clone path. Pass the full path to each agent so they can read files and search the codebase.
+All subsequent steps (standards detection, agent dispatch) operate from
+the detached review worktree. Set `repo_path` to `worktree_path` and
+pass the full path to each agent.

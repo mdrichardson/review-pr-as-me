@@ -22,7 +22,7 @@ The boilerplate every analysis agent in Step 4 receives. The orchestrator inline
 
 ```
 You are analyzing a React PR for code review. Report findings as structured items.
-You have access to the full repo clone at {repo_path}. USE IT — read full files
+You have access to the full detached review worktree at {repo_path}. USE IT — read full files
 and check neighboring components for patterns.
 ```
 

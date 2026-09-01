@@ -47,10 +47,11 @@ read-time TTL is needed.
 | `import-graph` | `sha256(baseSha + "\n" + sorted(changedFileBasenames).join("\n"))` |
 | `pr` | `pr-{number}-{headSha}` — the PR head SHA is the freshness signal. |
 
-`HEAD` here is the PR head commit (after `gh pr checkout`), not whatever
-branch was checked out before. Always run the `git rev-parse` calls
-**after** Phase 1's `gh pr checkout {number}` / `git checkout
-FETCH_HEAD` so the tree-SHAs reflect the PR state, not the base state.
+`HEAD` here is the PR head commit in Phase 1's detached review worktree,
+not whatever branch is checked out in the source repository. Always run
+the `git rev-parse` calls from `repo_path` **after** the namespaced PR
+refs are fetched and the detached worktree is created, so the tree-SHAs
+reflect the PR state, not the base state.
 
 ## Read-then-write pattern
 

@@ -5,11 +5,11 @@
       "id": 1,
       "eval_name": "ghe-url-one-shot",
       "prompt": "/rpr https://microsoft.ghe.com/bic/copilot-studio-ux/pull/806",
-      "expected_output": "First action is TaskCreate populating the PR-URL-mode task list. Second action is gh pr view (with GH_HOST=microsoft.ghe.com) or equivalent metadata fetch. No AskUserQuestion issued unless the local clone at ~/.claude/repos/bic/copilot-studio-ux/ is genuinely missing.",
+      "expected_output": "First action is TaskCreate populating the PR-URL-mode task list. Second action is gh pr view (with GH_HOST=microsoft.ghe.com) or equivalent metadata fetch. The current workspace is checked for an exact remote match before clone fallback. No AskUserQuestion is issued unless neither the current workspace nor an existing review clone matches.",
       "assertions": [
         {
           "name": "no_pre_step3_user_questions",
-          "text": "Between invocation and the end of Step 3, zero AskUserQuestion calls — unless the clone directory is missing, in which case exactly one 'shall I create it?' prompt is allowed."
+          "text": "Between invocation and the end of Step 3, zero AskUserQuestion calls — unless neither the current workspace nor an existing review clone matches, in which case exactly one 'shall I create it?' prompt is allowed."
         },
         {
           "name": "tasks_created_before_pr_fetch",
@@ -30,7 +30,7 @@
       "assertions": [
         {
           "name": "no_pre_step3_user_questions",
-          "text": "Between invocation and the end of Step 3, zero AskUserQuestion calls — unless the clone directory is missing, in which case exactly one 'shall I create it?' prompt is allowed."
+          "text": "Between invocation and the end of Step 3, zero AskUserQuestion calls — unless neither the current workspace nor an existing review clone matches, in which case exactly one 'shall I create it?' prompt is allowed."
         },
         {
           "name": "tasks_created_before_pr_fetch",
@@ -43,6 +43,39 @@
         {
           "name": "review_instructions_honored",
           "text": "The string 'focus on effect dependency correctness' appears verbatim in the prompt text of at least one dispatched analysis agent."
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 3,
+      "eval_name": "ado-url-current-workspace",
+      "prompt": "/rpr https://dev.azure.com/contoso/Web/_git/app/pullrequest/42",
+      "expected_output": "Fetch PR 42 with the supported az repos pr show arguments, load threads through az devops invoke pullRequestThreads, prefer the current checkout when its normalized remote matches the returned repository, and create a detached review worktree without cloning or switching the current workspace.",
+      "assertions": [
+        {
+          "name": "ado_pr_show_uses_supported_arguments",
+          "text": "The metadata command is `az repos pr show --id 42 --org https://dev.azure.com/contoso --output json`; it does not pass `--project`."
+        },
+        {
+          "name": "ado_threads_use_rest_resource",
+          "text": "Existing threads are fetched with `az devops invoke --area git --resource pullRequestThreads`, route parameters `project=Web`, `repositoryId={repository.id}`, and `pullRequestId=42`, API version 7.1, and GET. The workflow reads threads from the response `value` array and never invokes nonexistent `az repos pr thread list`."
+        },
+        {
+          "name": "ado_diff_uses_fetched_refs",
+          "text": "The workflow never invokes nonexistent `az repos pr diff`; it fetches metadata `targetRefName` and `sourceRefName` into namespaced refs and runs `git diff {baseSha}...{headSha}`."
+        },
+        {
+          "name": "matching_workspace_prevents_clone",
+          "text": "Before clone fallback, the current Copilot checkout's normalized Git remotes are compared with the exact ADO org/project/repo identity and metadata remoteUrl/sshUrl. A match sets it as `source_repo` and no clone command or clone-auth prompt occurs."
+        },
+        {
+          "name": "review_isolated_in_detached_worktree",
+          "text": "The matching workspace is used only to fetch namespaced refs; the workflow creates or safely reuses a clean `git worktree add --detach` path keyed by PR ID and head SHA, leaves the workspace branch and working tree untouched, and sets `repo_path` to the detached worktree."
+        },
+        {
+          "name": "ado_comment_post_uses_rest_resource",
+          "text": "When the user approves an ADO comment, the workflow JSON-encodes one comment body and posts it with `az devops invoke --area git --resource pullRequestThreads`, the same route identifiers, API version 7.1, POST, and `--in-file`; it never invokes nonexistent `az repos pr thread create`."
         }
       ],
       "files": []
